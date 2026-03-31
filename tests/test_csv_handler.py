@@ -1,14 +1,17 @@
 import unittest
 import tempfile
 
-from coinbasis.csv_reader import (
+from coinbasis.csv_handler import (
     parse_float,
     parse_string,
     parse_row,
     parse_csv,
     get_field_parser,
+    transaction_to_row,
+    write_csv,
     csv,
     Transaction,
+    COLUMN_MAP,
 )
 
 
@@ -180,3 +183,165 @@ class TestParseCSV(unittest.TestCase):
 
         transactions = parse_csv(tmp_path)
         self.assertEqual(transactions, [])
+
+
+class TestTransactionToRow(unittest.TestCase):
+    def test_transaction_to_row_basic(self):
+        tx = Transaction(
+            timestamp='2024-01-01 12:00:00',
+            type='STAKING_REWARD',
+            transaction_id='12345',
+            received_qty=1.23,
+            received_currency='ATOM'
+        )
+
+        row = transaction_to_row(tx)
+
+        self.assertEqual(set(row.keys()), set(COLUMN_MAP.keys()))
+        self.assertEqual(row['Date'], '2024-01-01 12:00:00')
+        self.assertEqual(row['Type'], 'STAKING_REWARD')
+        self.assertEqual(row['Transaction ID'], '12345')
+        self.assertEqual(row['Received Quantity'], '1.23')
+        self.assertEqual(row['Received Currency'], 'ATOM')
+
+    def test_transaction_to_row_none_values(self):
+        tx = Transaction(
+            timestamp='2024-01-01',
+            type='INTEREST_PAYMENT',
+            transaction_id='abc123',
+            received_qty=None,
+            received_currency=None
+        )
+
+        row = transaction_to_row(tx)
+
+        self.assertEqual(row['Received Quantity'], '')
+        self.assertEqual(row['Received Currency'], '')
+
+    def test_transaction_to_row_float_format(self):
+        tx = Transaction(
+            timestamp='2024-01-01',
+            type='INTEREST_PAYMENT',
+            transaction_id='xyz',
+            received_qty=0.00012345
+        )
+
+        row = transaction_to_row(tx)
+
+        self.assertEqual(row['Received Quantity'], '0.00012345')
+
+    def test_transaction_to_row_column_order(self):
+        tx = Transaction(
+            timestamp='2024-01-01',
+            type='INTEREST_PAYMENT',
+            transaction_id='xyz'
+        )
+
+        row = transaction_to_row(tx)
+
+        # DictWriter relies on COLUMN_MAP order
+        expected_order = list(COLUMN_MAP.keys())
+        actual_order = list(row.keys())
+
+        self.assertEqual(actual_order, expected_order)
+
+
+class TestWriteCSV(unittest.TestCase):
+
+    def test_write_csv_basic(self):
+        tx1 = Transaction(
+            timestamp='2024-01-01 12:00:00',
+            type='STAKING_REWARD',
+            transaction_id='12345',
+            received_qty=1.23,
+            received_currency='ATOM'
+        )
+
+        tx2 = Transaction(
+            timestamp='2024-01-02 13:00:00',
+            type='INTEREST_PAYMENT',
+            transaction_id='67890',
+            received_qty=2.50,
+            received_currency='BTC'
+        )
+
+        with tempfile.NamedTemporaryFile(mode='w+', newline='', delete=False) as tmp:
+            tmp_path = tmp.name
+
+        write_csv(tmp_path, [tx1, tx2])
+
+        # Read back the file
+        with open(tmp_path, newline='') as csvfile:
+            reader = csv.DictReader(csvfile)
+            rows = list(reader)
+
+        self.assertEqual(len(rows), 2)
+
+        # Validate first row
+        r1 = rows[0]
+        self.assertEqual(r1['Date'], '2024-01-01 12:00:00')
+        self.assertEqual(r1['Type'], 'STAKING_REWARD')
+        self.assertEqual(r1['Transaction ID'], '12345')
+        self.assertEqual(r1['Received Quantity'], '1.23')
+        self.assertEqual(r1['Received Currency'], 'ATOM')
+
+        # Validate second row
+        r2 = rows[1]
+        self.assertEqual(r2['Date'], '2024-01-02 13:00:00')
+        self.assertEqual(r2['Type'], 'INTEREST_PAYMENT')
+        self.assertEqual(r2['Transaction ID'], '67890')
+        self.assertEqual(r2['Received Quantity'], '2.5')
+        self.assertEqual(r2['Received Currency'], 'BTC')
+
+    def test_write_csv_none_values(self):
+        tx = Transaction(
+            timestamp='2024-01-01',
+            type='INTEREST_PAYMENT',
+            transaction_id='abc123',
+            received_qty=None,
+            received_currency=None
+        )
+
+        with tempfile.NamedTemporaryFile(mode='w+', newline='', delete=False) as tmp:
+            tmp_path = tmp.name
+
+        write_csv(tmp_path, [tx])
+
+        with open(tmp_path, newline='') as csvfile:
+            reader = csv.DictReader(csvfile)
+            row = next(reader)
+
+        self.assertEqual(row['Received Quantity'], '')
+        self.assertEqual(row['Received Currency'], '')
+
+    def test_write_csv_header_order(self):
+        tx = Transaction(
+            timestamp='2024-01-01',
+            type='INTEREST_PAYMENT',
+            transaction_id='xyz'
+        )
+
+        with tempfile.NamedTemporaryFile(mode='w+', newline='', delete=False) as tmp:
+            tmp_path = tmp.name
+
+        write_csv(tmp_path, [tx])
+
+        with open(tmp_path, newline='') as csvfile:
+            header = csvfile.readline().strip().split(',')
+
+        expected = list(COLUMN_MAP.keys())
+        self.assertEqual(header, expected)
+
+    def test_write_csv_empty_list(self):
+        with tempfile.NamedTemporaryFile(mode='w+', newline='', delete=False) as tmp:
+            tmp_path = tmp.name
+
+        write_csv(tmp_path, [])
+
+        with open(tmp_path, newline='') as csvfile:
+            reader = csv.DictReader(csvfile)
+            rows = list(reader)
+
+        # No rows, but header exists
+        self.assertEqual(rows, [])
+        self.assertEqual(reader.fieldnames, list(COLUMN_MAP.keys()))

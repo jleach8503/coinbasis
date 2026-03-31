@@ -1,4 +1,4 @@
-from coinbasis.csv_reader import parse_csv
+from coinbasis.csv_handler import parse_csv
 
 CSV_PATH = 'C:/Repositories/Coinbasis/input/2025 Transactions.csv'
 

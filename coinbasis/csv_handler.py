@@ -3,6 +3,8 @@ from typing import get_args
 from coinbasis.models import Transaction, COLUMN_MAP
 
 
+REVERSED_COLUMN_MAP = {value: key for key, value in COLUMN_MAP.items()}
+
 def parse_float(value: str) -> float | None:
     stripped = value.strip()
     if not stripped or stripped == '...':
@@ -26,6 +28,7 @@ def get_field_parser(field_name: str):
 
     return parse_string
 
+
 def parse_row(row: dict) -> dict:
     parsed = {}
     for col, value in row.items():
@@ -46,3 +49,19 @@ def parse_csv(path: str) -> list[Transaction]:
             transactions.append(Transaction(**parse_row(row)))
 
     return transactions
+
+
+def transaction_to_row(tx: Transaction) -> dict[str, str]:
+    row = {}
+    for field_name, col in REVERSED_COLUMN_MAP.items():
+        value = getattr(tx, field_name)
+        row[col] = "" if value is None else str(value)
+    return row
+
+
+def write_csv(path: str, transactions: list[Transaction]):
+    with open(path, 'w', newline='') as csvfile:
+        writer = csv.DictWriter(csvfile, fieldnames=list(COLUMN_MAP.keys()))
+        writer.writeheader()
+        for tx in transactions:
+            writer.writerow(transaction_to_row(tx))
