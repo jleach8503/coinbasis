@@ -1,4 +1,5 @@
 import unittest
+import tempfile
 
 from coinbasis.csv_reader import (
     parse_float,
@@ -6,6 +7,8 @@ from coinbasis.csv_reader import (
     parse_row,
     parse_csv,
     get_field_parser,
+    csv,
+    Transaction,
 )
 
 
@@ -109,3 +112,71 @@ class TestParseRow(unittest.TestCase):
 
         self.assertIsInstance(parsed['received_qty'], float)
         self.assertIsInstance(parsed['received_currency'], str)
+
+
+class TestParseCSV(unittest.TestCase):
+    def test_parse_csv_basic(self):
+        # Create a temporary CSV file
+        with tempfile.NamedTemporaryFile(mode='w+', newline='', delete=False) as tmp:
+            writer = csv.writer(tmp)
+            writer.writerow(['Date', 'Type', 'Transaction ID', 'Received Quantity', 'Received Currency'])
+            writer.writerow(['2024-01-01 12:00:00', 'STAKING_REWARD', '12345', '1.23', 'ATOM'])
+            writer.writerow(['2024-01-02 13:00:00', 'INTEREST_PAYMENT', '67890', '2.50', 'BTC'])
+            tmp_path = tmp.name
+
+        transactions = parse_csv(tmp_path)
+
+        self.assertEqual(len(transactions), 2)
+        self.assertIsInstance(transactions[0], Transaction)
+
+        # Validate first row
+        t1 = transactions[0]
+        self.assertEqual(t1.timestamp, '2024-01-01 12:00:00')
+        self.assertEqual(t1.type, 'STAKING_REWARD')
+        self.assertEqual(t1.transaction_id, '12345')
+        self.assertEqual(t1.received_qty, 1.23)
+        self.assertEqual(t1.received_currency, 'ATOM')
+
+        # Validate second row
+        t2 = transactions[1]
+        self.assertEqual(t2.timestamp, '2024-01-02 13:00:00')
+        self.assertEqual(t2.type, 'INTEREST_PAYMENT')
+        self.assertEqual(t2.transaction_id, '67890')
+        self.assertEqual(t2.received_qty, 2.50)
+        self.assertEqual(t2.received_currency, 'BTC')
+
+    def test_parse_csv_missing_fields(self):
+        with tempfile.NamedTemporaryFile(mode='w+', newline='', delete=False) as tmp:
+            writer = csv.writer(tmp)
+            writer.writerow(['Date', 'Type', 'Transaction ID', 'Received Quantity', 'Received Currency'])
+            writer.writerow(['2024-01-01', '12345', 'STAKING_REWARD', '', ''])
+            tmp_path = tmp.name
+
+        transactions = parse_csv(tmp_path)
+        t = transactions[0]
+
+        self.assertIsNone(t.received_qty)
+        self.assertIsNone(t.received_currency)
+
+    def test_parse_csv_ignores_unknown_columns(self):
+        with tempfile.NamedTemporaryFile(mode='w+', newline='', delete=False) as tmp:
+            writer = csv.writer(tmp)
+            writer.writerow(['Date', 'Type', 'Transaction ID', 'Unknown Column'])
+            writer.writerow(['2024-01-01', 'STAKING_REWARD', '12345', 'ignored'])
+            tmp_path = tmp.name
+
+        transactions = parse_csv(tmp_path)
+        t = transactions[0]
+
+        self.assertEqual(t.timestamp, '2024-01-01')
+        self.assertEqual(t.type, 'STAKING_REWARD')
+        self.assertEqual(t.transaction_id, '12345')
+
+    def test_parse_csv_empty(self):
+        with tempfile.NamedTemporaryFile(mode='w+', newline='', delete=False) as tmp:
+            writer = csv.writer(tmp)
+            writer.writerow(['Date', 'Type', 'Transaction ID'])  # header only
+            tmp_path = tmp.name
+
+        transactions = parse_csv(tmp_path)
+        self.assertEqual(transactions, [])

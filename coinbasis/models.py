@@ -6,27 +6,27 @@ class Transaction:
     type: str
     transaction_id: str
 
-    received_qty: float | None
-    received_currency: str | None
-    received_usd_cost_basis: float | None
-    received_wallet: str | None
-    received_address: str | None
-    received_comment: str | None
+    received_qty: float | None = None
+    received_currency: str | None = None
+    received_usd_cost_basis: float | None = None
+    received_wallet: str | None = None
+    received_address: str | None = None
+    received_comment: str | None = None
 
-    sent_qty: float | None
-    sent_currency: str | None
-    sent_usd_cost_basis: float | None
-    sent_wallet: str | None
-    sent_address: str | None
-    sent_comment: str | None
+    sent_qty: float | None = None
+    sent_currency: str | None = None
+    sent_usd_cost_basis: float | None = None
+    sent_wallet: str | None = None
+    sent_address: str | None = None
+    sent_comment: str | None = None
 
-    fee_qty: float | None
-    fee_currency: str | None
-    fee_usd_cost_basis: float | None
+    fee_qty: float | None = None
+    fee_currency: str | None = None
+    fee_usd_cost_basis: float | None = None
 
-    realized_return: float | None
-    fee_realized_return: float | None
-    transaction_hash: str | None
+    realized_return: float | None = None
+    fee_realized_return: float | None = None
+    transaction_hash: str | None = None
 
 
 COLUMN_MAP = {
