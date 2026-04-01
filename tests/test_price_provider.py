@@ -3,6 +3,7 @@ from unittest.mock import patch
 
 import coinbasis.price_provider as price_provider
 
+
 @patch('coinbasis.price_provider.get_usd_price_at_time')
 class TestGetUsdPriceAtTime(unittest.TestCase):
     def test_get_usd_price_at_time(self, mock_price):
@@ -37,3 +38,4 @@ class TestGetUsdPriceAtTime(unittest.TestCase):
 
         with self.assertRaises(ValueError):
             price_provider.get_usd_price_at_time('FAKECOIN', '2024-01-01T00:00:00')
+
