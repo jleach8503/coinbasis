@@ -24,12 +24,16 @@ def normalize_timestamp(timestamp: datetime) -> datetime:
     return timestamp.replace(second=0, microsecond=0)
 
 
+def to_iso_minute(timestamp: datetime) -> str:
+    return timestamp.strftime('%Y-%m-%dT%H:%M')
+
+
 def get_time_window(timestamp: datetime, range: TimeRange) -> tuple[datetime, datetime]:
-    """
+    '''
     Given a timestamp and a TimeRange, returns the start and end times for the range, beginning
     with the start of the range specified.  For example, specifying WEEK will return the start and
     end of the week (Monday - Saturday) for the week the timestamp falls into.
-    """
+    '''
 
     timestamp = normalize_timestamp(timestamp)
     match range:

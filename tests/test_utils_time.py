@@ -5,6 +5,7 @@ from coinbasis.utils.time import (
     get_time_window,
     TimeRange,
     normalize_timestamp,
+    to_iso_minute,
 )
 
 
@@ -97,3 +98,9 @@ class TestNormalizeTimestamp(unittest.TestCase):
         result = normalize_timestamp(ts)
 
         self.assertEqual(result, datetime(2024, 1, 17, 23, 59, tzinfo=timezone.utc))
+
+
+class TestToIsoMinute(unittest.TestCase):
+    def test_to_iso_minute(self):
+        dt = datetime(2024, 1, 1, 12, 34, 56, tzinfo=timezone.utc)
+        self.assertEqual(to_iso_minute(dt), '2024-01-01T12:34')
