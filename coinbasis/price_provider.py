@@ -26,6 +26,9 @@ def get_usd_price_in_range(symbol: str, timestamp: datetime) -> list[tuple[datet
     start, end = get_time_window(timestamp, API_TIME_WINDOW)
     url = COINGECKO_URL.format(id=symbol.lower())
 
+    print("Calling api")
+    return
+
     headers = {'x-cg-pro-api-key': COINGECKO_API_KEY}
     params = {
         'vs_currency': BASE_CURRENCY,

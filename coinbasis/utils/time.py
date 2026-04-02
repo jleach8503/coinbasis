@@ -28,16 +28,23 @@ def to_iso_minute(timestamp: datetime) -> str:
     return timestamp.strftime('%Y-%m-%dT%H:%M')
 
 
-def get_time_window(timestamp: datetime, range: TimeRange) -> tuple[datetime, datetime]:
+def get_time_window(timestamp: datetime, span: TimeRange | TimeInterval) -> tuple[datetime, datetime]:
     '''
-    Given a timestamp and a TimeRange, returns the start and end times for the range, beginning
-    with the start of the range specified.  For example, specifying WEEK will return the start and
-    end of the week (Monday - Saturday) for the week the timestamp falls into.
+    Given a timestamp and a TimeRange or TimeInterval, returns the start and end times for the span,
+    beginning with the start of the span specified.  For example, specifying WEEK will return the start
+    and end of the week (Monday - Saturday) for the week the timestamp falls into.
     '''
 
     timestamp = normalize_timestamp(timestamp)
-    match range:
-        case TimeRange.DAY:
+    match span:
+        case TimeInterval.MIN:
+            minute = (timestamp.minute // 5) * 5
+            start = timestamp.replace(minute=minute)
+            end = start + timedelta(minutes=5)
+        case TimeInterval.HOUR:
+            start = timestamp.replace(minute=0)
+            end = start + timedelta(hours=1)
+        case TimeRange.DAY | TimeInterval.DAY:
             start = timestamp.replace(hour=0, minute=0)
             end = start + timedelta(days=1)
         case TimeRange.WEEK:
@@ -54,7 +61,7 @@ def get_time_window(timestamp: datetime, range: TimeRange) -> tuple[datetime, da
             start = timestamp.replace(month=1,day=1,hour=0, minute=0)
             end = start.replace(year=start.year + 1)
         case _:
-            raise ValueError(f'Unsupported TimeRange: {range}')
+            raise ValueError(f'Unsupported span: {span}')
 
     end = end - timedelta(minutes=1)
     return start, end

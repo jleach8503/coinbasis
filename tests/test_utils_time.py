@@ -4,12 +4,34 @@ from datetime import datetime, timezone, timedelta
 from coinbasis.utils.time import (
     get_time_window,
     TimeRange,
+    TimeInterval,
     normalize_timestamp,
     to_iso_minute,
 )
 
 
 class TestGetTimeWindow(unittest.TestCase):
+    def test_min_interval(self):
+        ts = datetime(2024, 1, 17, 12, 34, tzinfo=timezone.utc)
+        start, end = get_time_window(ts, TimeInterval.MIN)
+
+        self.assertEqual(start, datetime(2024, 1, 17, 12, 30, tzinfo=timezone.utc))
+        self.assertEqual(end,   datetime(2024, 1, 17, 12, 34, tzinfo=timezone.utc))
+
+    def test_hour_interval(self):
+        ts = datetime(2024, 1, 17, 12, 34, tzinfo=timezone.utc)
+        start, end = get_time_window(ts, TimeInterval.HOUR)
+
+        self.assertEqual(start, datetime(2024, 1, 17, 12, 0, tzinfo=timezone.utc))
+        self.assertEqual(end,   datetime(2024, 1, 17, 12, 59, tzinfo=timezone.utc))
+
+    def test_day_interval(self):
+        ts = datetime(2024, 1, 17, 12, 34, tzinfo=timezone.utc)
+        start, end = get_time_window(ts, TimeInterval.DAY)
+
+        self.assertEqual(start, datetime(2024, 1, 17, 0, 0, tzinfo=timezone.utc))
+        self.assertEqual(end,   datetime(2024, 1, 17, 23, 59, tzinfo=timezone.utc))
+
     def test_day_range(self):
         ts = datetime(2024, 1, 17, 12, 34, tzinfo=timezone.utc)
         start, end = get_time_window(ts, TimeRange.DAY)
