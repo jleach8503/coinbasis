@@ -40,14 +40,14 @@ class TestGetUsdPriceAtTime(unittest.TestCase):
             price_provider.get_usd_price_at_time('FAKECOIN', '2024-01-01T00:00:00')
 
 
+@patch('coinbasis.price_provider.COIN_ID_CACHE.lookup', return_value='atom')
 @patch('coinbasis.price_provider.PRICE_CACHE')
 @patch('coinbasis.price_provider.get_usd_price_in_range')
 class TestGetUsdPriceInRange(unittest.TestCase):
-    def test_recursive_fetch(self, mock_range, mock_cache):
+    def test_recursive_fetch(self, mock_range, mock_cache, mock_coin_id):
         ts = price_provider.datetime(2024, 1, 1, 12, 0)
         mock_cache.lookup.side_effect = [None, 10.5]
 
-        # Provider returns raw data
         mock_range.return_value = {
             'prices': [
                 [1700000000000, 10.5]
@@ -64,7 +64,7 @@ class TestGetUsdPriceInRange(unittest.TestCase):
         mock_cache.store_points.assert_called_once()
         self.assertEqual(mock_cache.lookup.call_count, 2)
 
-    def test_empty_provider_response_raises(self, mock_range, mock_cache):
+    def test_empty_provider_response_raises(self, mock_range, mock_cache, mock_coin_id):
         ts = price_provider.datetime(2024, 1, 1, 12, 0)
 
         mock_cache.lookup.return_value = None
@@ -73,7 +73,7 @@ class TestGetUsdPriceInRange(unittest.TestCase):
         with self.assertRaises(ValueError):
             price_provider.get_usd_price_at_time('atom', ts)
 
-    def test_store_points_receives_merged_data(self, mock_range, mock_cache):
+    def test_store_points_receives_merged_data(self, mock_range, mock_cache, mock_coin_id):
         ts = price_provider.datetime(2024, 1, 1, 12, 0)
 
         mock_cache.lookup.side_effect = [None, 10.5]
@@ -98,7 +98,7 @@ class TestGetUsdPriceInRange(unittest.TestCase):
         self.assertEqual(price, 10.5)
         self.assertEqual(volume, 12345.0)
 
-    def test_lookup_normalization(self, mock_range, mock_cache):
+    def test_lookup_normalization(self, mock_range, mock_cache, mock_coin_id):
         naive = price_provider.datetime(2024, 1, 1, 12, 0)
         aware = naive.replace(tzinfo=price_provider.timezone.utc)
 
@@ -118,7 +118,7 @@ class TestGetUsdPriceInRange(unittest.TestCase):
         self.assertEqual(called_ts.tzinfo, None)
 
     @patch('coinbasis.price_provider.merge_price_volume')
-    def test_merge_called(self, mock_merge, mock_range, mock_cache):
+    def test_merge_called(self, mock_merge, mock_range, mock_cache, mock_coin_id):
         ts = price_provider.datetime(2024, 1, 1, 12, 0)
 
         mock_cache.lookup.side_effect = [None, 10.5]
