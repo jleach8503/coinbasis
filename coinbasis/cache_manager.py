@@ -68,3 +68,44 @@ class PriceCache:
             }
 
         self.save()
+
+
+class CoinMapCache:
+    def __init__(self, path: str):
+        self.path = path
+        self.data = self._load()
+
+    def _load(self) -> dict:
+        if not os.path.exists(self.path):
+            return {}
+        with open(self.path, 'r', encoding='utf-8') as f:
+            return json.load(f)
+
+    def save(self):
+        with open(self.path, 'w', encoding='utf-8') as f:
+            json.dump(self.data, f, indent=2)
+
+    def lookup(self, symbol: str) -> str:
+        symbol = symbol.lower()
+        entries = self.data.get(symbol)
+
+        if not entries:
+            raise ValueError(f'No coin_id found for symbol: {symbol}')
+
+        if len(entries) > 1:
+            raise ValueError(f'Multiple coin_id entries for symbol: {symbol}')
+
+        return entries[0]['coin_id']
+
+    def list_duplicates(self, symbol: str) -> list[dict]:
+        return self.data.get(symbol.lower(), [])
+
+    def prune(self, symbol: str, keep_coin_id: str):
+        symbol = symbol.lower()
+        entries = self.data.get(symbol, [])
+
+        self.data[symbol] = [
+            e for e in entries if e['coin_id'] == keep_coin_id
+        ]
+
+        self.save()
