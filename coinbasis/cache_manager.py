@@ -11,6 +11,14 @@ from coinbasis.utils.time import (
 )
 
 
+class CoinNotFoundError(ValueError):
+    pass
+
+
+class MultipleCoinsError(ValueError):
+    pass
+
+
 class PriceCache:
     def __init__(self, path: str, interval: TimeInterval = TimeInterval('daily')):
         self.path = path
@@ -28,8 +36,8 @@ class PriceCache:
         with open(self.path, 'w') as f:
             json.dump(self.data, f, indent=2)
 
-    def lookup(self, symbol: str, timestamp: datetime) -> Optional[float]:
-        data_points = self.lookup_range(symbol, timestamp)
+    def lookup(self, coin_id: str, timestamp: datetime) -> Optional[float]:
+        data_points = self.lookup_range(coin_id, timestamp)
         if not data_points:
             return None
         if len(data_points) == 1:
@@ -42,12 +50,12 @@ class PriceCache:
         closest = min(data_points, key=distance)
         return closest['price']
 
-    def lookup_range(self, symbol: str, timestamp: datetime) -> list[dict]:
+    def lookup_range(self, coin_id: str, timestamp: datetime) -> list[dict]:
         start, end = (to_iso_minute(t) for t in get_time_window(timestamp, self.interval))
-        symbol_data = self.data.get(symbol, {})
+        coin_id_data = self.data.get(coin_id, {})
 
         results = []
-        for time, entry in symbol_data.items():
+        for time, entry in coin_id_data.items():
             if start <= time <= end:
                 results.append({
                     'timestamp': time,
@@ -56,13 +64,13 @@ class PriceCache:
                 })
         return results
 
-    def store_points(self, symbol: str, points: list[tuple[datetime, float, float]]):
-        if symbol not in self.data:
-            self.data[symbol] = {}
+    def store_points(self, coin_id: str, points: list[tuple[datetime, float, float]]):
+        if coin_id not in self.data:
+            self.data[coin_id] = {}
 
         for timestamp, price, volume in points:
             iso = to_iso_minute(timestamp)
-            self.data[symbol][iso] = {
+            self.data[coin_id][iso] = {
                 'price': price,
                 'volume': volume,
             }
@@ -90,10 +98,10 @@ class CoinMapCache:
         entries = self.data.get(symbol)
 
         if not entries:
-            raise ValueError(f'No coin_id found for symbol: {symbol}')
+            raise CoinNotFoundError(f'No coin_id found for symbol: {symbol}')
 
         if len(entries) > 1:
-            raise ValueError(f'Multiple coin_id entries for symbol: {symbol}')
+            raise MultipleCoinsError(f'Multiple coin_id entries for symbol: {symbol}')
 
         return entries[0]['coin_id']
 
@@ -107,5 +115,3 @@ class CoinMapCache:
         self.data[symbol] = [
             e for e in entries if e['coin_id'] == keep_coin_id
         ]
-
-        self.save()

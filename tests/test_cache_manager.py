@@ -106,11 +106,14 @@ class TestCoinMapCache(unittest.TestCase):
 
     def test_prune_duplicates(self):
         self.cache.prune('ada', 'cardano')
-        cache2 = CoinMapCache(self.json_path)
+        nodupes = self.cache.list_duplicates('ada')
+        self.assertEqual(len(nodupes),1)
 
+        cache2 = CoinMapCache(self.json_path)
         dupes = cache2.list_duplicates('ada')
-        self.assertEqual(len(dupes), 1)
+        self.assertEqual(len(dupes),2)
         self.assertEqual(dupes[0]['coin_id'], 'cardano')
+
 
     def test_prune_nonexistent_symbol(self):
         self.cache.prune('doge', 'whatever')

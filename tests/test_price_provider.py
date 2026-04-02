@@ -1,5 +1,5 @@
 import unittest
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 
 import coinbasis.price_provider as price_provider
 
@@ -217,3 +217,176 @@ class TestMergePriceVolume(unittest.TestCase):
 
         result = price_provider.merge_price_volume(data)
         self.assertEqual(result, [])
+
+
+class TestGetUniqueSymbols(unittest.TestCase):
+    def test_extracts_all_three_currency_fields(self):
+        txs = [
+            price_provider.Transaction(
+                timestamp='2024-01-01',
+                type='trade',
+                transaction_id='1',
+                received_currency='ATOM',
+                sent_currency='BTC',
+                fee_currency='ETH',
+            )
+        ]
+
+        symbols = price_provider.get_unique_symbols(txs)
+        self.assertEqual(symbols, {'atom', 'btc', 'eth'})
+
+    def test_ignores_none_values(self):
+        txs = [
+            price_provider.Transaction(
+                timestamp='2024-01-01',
+                type='trade',
+                transaction_id='1',
+                received_currency=None,
+                sent_currency='BTC',
+                fee_currency=None,
+            )
+        ]
+
+        symbols = price_provider.get_unique_symbols(txs)
+        self.assertEqual(symbols, {'btc'})
+
+    def test_excludes_base_currency(self):
+        txs = [
+            price_provider.Transaction(
+                timestamp='2024-01-01',
+                type='trade',
+                transaction_id='1',
+                received_currency='USD',
+                sent_currency='BTC',
+                fee_currency='usd',
+            )
+        ]
+
+        symbols = price_provider.get_unique_symbols(txs)
+        self.assertEqual(symbols, {'btc'})  # USD excluded
+
+    def test_lowercases_all_symbols(self):
+        txs = [
+            price_provider.Transaction(
+                timestamp='2024-01-01',
+                type='trade',
+                transaction_id='1',
+                received_currency='AtOm',
+                sent_currency='bTc',
+                fee_currency='Eth',
+            )
+        ]
+
+        symbols = price_provider.get_unique_symbols(txs)
+        self.assertEqual(symbols, {'atom', 'btc', 'eth'})
+
+    def test_deduplicates_symbols(self):
+        txs = [
+            price_provider.Transaction(
+                timestamp='2024-01-01',
+                type='trade',
+                transaction_id='1',
+                received_currency='ATOM',
+                sent_currency='atom',
+                fee_currency='ATOM',
+            )
+        ]
+
+        symbols = price_provider.get_unique_symbols(txs)
+        self.assertEqual(symbols, {'atom'})
+
+    def test_multiple_transactions(self):
+        txs = [
+            price_provider.Transaction(
+                timestamp='2024-01-01',
+                type='trade',
+                transaction_id='1',
+                received_currency='ATOM',
+                sent_currency='BTC',
+                fee_currency=None,
+            ),
+            price_provider.Transaction(
+                timestamp='2024-01-02',
+                type='trade',
+                transaction_id='2',
+                received_currency='ETH',
+                sent_currency='BTC',
+                fee_currency='ATOM',
+            ),
+        ]
+
+        symbols = price_provider.get_unique_symbols(txs)
+        self.assertEqual(symbols, {'atom', 'btc', 'eth'})
+
+
+class TestResolveSymbolInteractively(unittest.TestCase):
+    def setUp(self):
+        self.entries = [
+            {'coin_id': 'cosmos', 'name': 'Cosmos Hub'},
+            {'coin_id': 'cosmos-2', 'name': 'Cosmos Legacy'},
+        ]
+
+    @patch('builtins.input', return_value='0')
+    def test_select_first_entry(self, mock_input):
+        result = price_provider.resolve_symbol_interactively('ATOM', self.entries)
+        self.assertEqual(result, 'cosmos')
+
+    @patch('builtins.input', return_value='1')
+    def test_select_second_entry(self, mock_input):
+        result = price_provider.resolve_symbol_interactively('ATOM', self.entries)
+        self.assertEqual(result, 'cosmos-2')
+
+    @patch('builtins.input', side_effect=['x', '5', '-1', '1'])
+    def test_invalid_then_valid_selection(self, mock_input):
+        result = price_provider.resolve_symbol_interactively('ATOM', self.entries)
+        self.assertEqual(result, 'cosmos-2')
+
+    @patch('builtins.input', side_effect=['', 'abc', '0'])
+    def test_empty_and_non_digit_then_valid(self, mock_input):
+        result = price_provider.resolve_symbol_interactively('ATOM', self.entries)
+        self.assertEqual(result, 'cosmos')
+
+    @patch('builtins.input', return_value='0')
+    @patch('builtins.print')
+    def test_prints_menu(self, mock_print, mock_input):
+        price_provider.resolve_symbol_interactively('ATOM', self.entries)
+
+        mock_print.assert_any_call('\nMultiple coin IDs found for symbol: ATOM')
+
+        mock_print.assert_any_call('[0] cosmos               - Cosmos Hub')
+        mock_print.assert_any_call('[1] cosmos-2             - Cosmos Legacy')
+
+
+class TestResolveAllSymbols(unittest.TestCase):
+    def setUp(self):
+        self.coin_map = MagicMock(spec=price_provider.CoinMapCache)
+
+    def test_lookup_success(self):
+        self.coin_map.lookup.return_value = 'bitcoin'
+
+        result = price_provider.resolve_all_symbols(['btc'], self.coin_map)
+
+        self.coin_map.lookup.assert_called_once_with('btc')
+        self.assertEqual(result, None)  # function currently returns nothing
+
+    @patch('coinbasis.price_provider.resolve_symbol_interactively', return_value='cosmos')
+    def test_multiple_coins_flow(self, mock_interactive):
+        self.coin_map.lookup.side_effect = price_provider.MultipleCoinsError()
+        self.coin_map.list_duplicates.return_value = [
+            {'coin_id': 'cosmos', 'name': 'Cosmos Hub'},
+            {'coin_id': 'cosmos-2', 'name': 'Cosmos Legacy'},
+        ]
+        self.coin_map.prune = MagicMock()
+
+        price_provider.resolve_all_symbols(['atom'], self.coin_map)
+
+        self.coin_map.lookup.assert_called_once_with('atom')
+        self.coin_map.list_duplicates.assert_called_once_with('atom')
+        mock_interactive.assert_called_once()
+        self.coin_map.prune.assert_called_once_with('atom', 'cosmos')
+
+    def test_coin_not_found_raises(self):
+        self.coin_map.lookup.side_effect = price_provider.CoinNotFoundError()
+
+        with self.assertRaises(price_provider.CoinNotFoundError):
+            price_provider.resolve_all_symbols(['unknown'], self.coin_map)
