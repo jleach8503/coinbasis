@@ -3,3 +3,4 @@ input/
 .venv/
 config.py
 data/logs/*
+data/cache/*.json

@@ -8,7 +8,7 @@ def main ():
     #print(f'Transaction Count: {len(transactions)}')
 
     timestamp = datetime(2025, 12, 30, 21, 44)
-    coin = 'ADA'
+    coin = 'cardano'
     price = get_usd_price_at_time(coin, timestamp)
     print(f'Price of {coin} on {timestamp} was {price}')
 

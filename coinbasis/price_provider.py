@@ -45,14 +45,13 @@ def get_usd_price_in_range(symbol: str, timestamp: datetime) -> list[tuple[datet
 
 def get_usd_price_at_time(symbol: str, timestamp: datetime) -> float:
     price = PRICE_CACHE.lookup(symbol, timestamp)
-    if price is not None:
-        return price
+    if price is None:
+        price_points = get_usd_price_in_range(symbol, timestamp)
+        merged = merge_price_volume(price_points)
+        PRICE_CACHE.store_points(symbol, merged)
+        price = PRICE_CACHE.lookup(symbol, timestamp)
 
-    price_points = get_usd_price_in_range(symbol, timestamp)
-    merged = merge_price_volume(price_points)
-    PRICE_CACHE.store_points(symbol, merged)
-
-    return get_usd_price_at_time(symbol, timestamp)
+    return price
 
 
 def merge_price_volume(data: dict) -> list[tuple[datetime, float, float]]:
