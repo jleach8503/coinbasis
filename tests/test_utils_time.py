@@ -1,4 +1,5 @@
 import unittest
+from unittest.mock import patch
 from datetime import datetime, timezone, timedelta
 
 from coinbasis.utils.time import (
@@ -7,6 +8,7 @@ from coinbasis.utils.time import (
     TimeInterval,
     normalize_timestamp,
     to_iso_minute,
+    apply_min_date,
 )
 
 
@@ -126,3 +128,61 @@ class TestToIsoMinute(unittest.TestCase):
     def test_to_iso_minute(self):
         dt = datetime(2024, 1, 1, 12, 34, 56, tzinfo=timezone.utc)
         self.assertEqual(to_iso_minute(dt), '2024-01-01T12:34')
+
+
+class TestApplyMinDate(unittest.TestCase):
+    @patch('coinbasis.utils.time.datetime')
+    def test_clamps_to_min_date(self, mock_datetime):
+        now = datetime(2024, 1, 1, tzinfo=timezone.utc)
+        mock_datetime.now.return_value = now
+        mock_datetime.side_effect = lambda *args, **kwargs: datetime(*args, **kwargs)
+
+        old_ts = now - timedelta(days=400)
+        result = apply_min_date(old_ts, min_days=365)
+
+        expected = now - timedelta(days=365)
+        self.assertEqual(result, expected)
+
+    @patch('coinbasis.utils.time.datetime')
+    def test_does_not_clamp_if_timestamp_newer(self, mock_datetime):
+        now = datetime(2024, 1, 1, tzinfo=timezone.utc)
+        mock_datetime.now.return_value = now
+        mock_datetime.side_effect = lambda *args, **kwargs: datetime(*args, **kwargs)
+
+        recent_ts = now - timedelta(days=100)
+        result = apply_min_date(recent_ts, min_days=365)
+
+        self.assertEqual(result, recent_ts)
+
+    @patch('coinbasis.utils.time.datetime')
+    def test_min_days_zero_returns_original(self, mock_datetime):
+        now = datetime(2024, 1, 1, tzinfo=timezone.utc)
+        mock_datetime.now.return_value = now
+        mock_datetime.side_effect = lambda *args, **kwargs: datetime(*args, **kwargs)
+
+        ts = now - timedelta(days=500)
+        result = apply_min_date(ts, min_days=0)
+
+        self.assertEqual(result, ts)
+
+    @patch('coinbasis.utils.time.datetime')
+    def test_negative_min_days_returns_original(self, mock_datetime):
+        now = datetime(2024, 1, 1, tzinfo=timezone.utc)
+        mock_datetime.now.return_value = now
+        mock_datetime.side_effect = lambda *args, **kwargs: datetime(*args, **kwargs)
+
+        ts = now - timedelta(days=500)
+        result = apply_min_date(ts, min_days=-10)
+
+        self.assertEqual(result, ts)
+
+    @patch('coinbasis.utils.time.datetime')
+    def test_exact_boundary(self, mock_datetime):
+        now = datetime(2024, 1, 1, tzinfo=timezone.utc)
+        mock_datetime.now.return_value = now
+        mock_datetime.side_effect = lambda *args, **kwargs: datetime(*args, **kwargs)
+
+        boundary_ts = now - timedelta(days=365)
+        result = apply_min_date(boundary_ts, min_days=365)
+
+        self.assertEqual(result, boundary_ts)

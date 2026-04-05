@@ -51,6 +51,7 @@ CACHE_PATH = 'data/cache/prices.json'
 | `BASE_CURRENCY` | Sets the base currency for cost-basis conversions. (`usd`) |
 | `API_INTERVAL` | Sets the interval size for price retrieval (`5m`,`hourly`,`daily`) |
 | `API_TIME_RANGE` | Sets the price retrieval window for non-cached price lookups (`day`,`week`,`month`,`year`)  |
+| `API_MIN_DAYS` | Sets the relative minimum number of days for price retrieval (`0` or less for unlimited) |
 | `COINGECKO_API_KEY` | Sets the API key to be used with the CoinGecko provider |
 | `COINGECKO_URL` | Sets the API endpoint to be used with the CoinGecko provider |
 | `COINGECKO_COIN_MAP` | Sets the relative path to the local JSON coin ID cache |

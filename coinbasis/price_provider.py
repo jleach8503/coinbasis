@@ -14,6 +14,7 @@ from coinbasis.utils.time import (
     timezone,
     get_time_window,
     to_iso_minute,
+    apply_min_date,
 )
 from config import (
     BASE_CURRENCY,
@@ -23,6 +24,7 @@ from config import (
     API_INTERVAL,
     API_TIME_RANGE,
     CACHE_PATH,
+    API_MIN_DAYS,
 )
 
 
@@ -41,7 +43,7 @@ def get_usd_price_in_range(symbol: str, timestamp: datetime) -> list[tuple[datet
     headers = {'x-cg-pro-api-key': COINGECKO_API_KEY}
     params = {
         'vs_currency': BASE_CURRENCY,
-        'from': to_iso_minute(start),
+        'from': to_iso_minute(apply_min_date(start, API_MIN_DAYS)),
         'to': to_iso_minute(end),
         'interval': API_INTERVAL,
     }

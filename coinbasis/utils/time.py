@@ -65,3 +65,10 @@ def get_time_window(timestamp: datetime, span: TimeRange | TimeInterval) -> tupl
 
     end = end - timedelta(minutes=1)
     return start, end
+
+
+def apply_min_date(timestamp: datetime, min_days: int) -> datetime:
+    if (min_days > 0):
+        min_date = datetime.now(timezone.utc) - timedelta(days=min_days)
+        return max(timestamp, min_date)
+    return timestamp
