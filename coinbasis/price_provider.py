@@ -1,4 +1,5 @@
 import requests
+import logging
 from typing import Iterable, Set
 from coinbasis.models import Transaction
 
@@ -30,31 +31,54 @@ from config import (
 
 PRICE_CACHE = PriceCache(CACHE_PATH)
 COIN_ID_CACHE = CoinMapCache(COINGECKO_COIN_MAP)
+logger = logging.getLogger(__name__)
 
 def get_usd_price_in_range(symbol: str, timestamp: datetime) -> list[tuple[datetime, float]]:
     if not COINGECKO_API_KEY:
+        logger.error('COINGECKO_API_KEY not set - cannot fetch price data')
         raise RuntimeError('COINGECKO_API_KEY not set')
 
     coin_id = COIN_ID_CACHE.lookup(symbol)
     start, end = get_time_window(timestamp, TimeRange(API_TIME_RANGE))
 
-    url = COINGECKO_URL.format(id=coin_id)
+    start = to_iso_minute(apply_min_date(start, API_MIN_DAYS))
+    end = to_iso_minute(apply_min_date(end, API_MIN_DAYS))
 
-    headers = {'x-cg-pro-api-key': COINGECKO_API_KEY}
-    params = {
-        'vs_currency': BASE_CURRENCY,
-        'from': to_iso_minute(apply_min_date(start, API_MIN_DAYS)),
-        'to': to_iso_minute(end),
-        'interval': API_INTERVAL,
-    }
+    if not (start <= timestamp <= end):
+        logger.info(
+            f'Skpping price lookup for {symbol}: timestamp {timestamp} '
+            f'outside allowed window {start} + {end}'
+        )
+        return []
 
-    response = requests.get(url, params=params)
-    response.raise_for_status()
+    try:
+        url = COINGECKO_URL.format(id=coin_id)
 
-    if not response.json():
-        raise ValueError(f'No price data returned for {symbol} ({coin_id}) at {timestamp}')
+        headers = {'x-cg-pro-api-key': COINGECKO_API_KEY}
+        params = {
+            'vs_currency': BASE_CURRENCY,
+            'from': start,
+            'to': end,
+            'interval': API_INTERVAL,
+        }
 
-    return response.json()
+        logger.debug(
+            f'Requesting price range for {symbol} ({coin_id}) '
+            f'from {params['from']} to {params['to']} with interval {API_INTERVAL}'
+        )
+
+        response = requests.get(url, params=params)
+        response.raise_for_status()
+
+        if not response.json():
+            raise ValueError(f'No price data returned for {symbol} ({coin_id}) at {timestamp}')
+
+        return response.json()
+    except Exception as e:
+        logger.warning(
+            f'Price lookup failed for {symbol} at {timestamp}: {e}'
+        )
+        return []
 
 
 def get_usd_price_at_time(symbol: str, timestamp: datetime) -> float:
@@ -94,7 +118,9 @@ def resolve_symbol_interactively(symbol: str, entries: list[dict]) -> str:
     while True:
         choice = input('Select the correct coin_id: ').strip()
         if choice.isdigit() and int(choice) in range(len(entries)):
-            return entries[int(choice)]['coin_id']
+            selected = entries[int(choice)]
+            logger.info(f'Duplicate Coin ID: Selected {selected['coin_id']} for {selected['name']}')
+            return selected['coin_id']
         print('Invalid selection. Try again.')
 
 
@@ -121,3 +147,25 @@ def get_unique_symbols(transactions: Iterable[Transaction]) -> Set[str]:
                 if symbol != BASE_CURRENCY.lower():
                     symbols.add(symbol)
     return symbols
+
+
+def add_price_to_transactions(transactions: list[Transaction]):
+    for tx in transactions:
+        ts = tx.timestamp
+
+        if tx.received_currency:
+            tx.received_usd_cost_basis = get_usd_price_at_time(tx.received_currency, tx.timestamp)
+        if tx.sent_currency:
+            tx.sent_usd_cost_basis = get_usd_price_at_time(tx.sent_currency, tx.timestamp)
+        if tx.fee_currency:
+            tx.fee_usd_cost_basis = get_usd_price_at_time(tx.fee_currency, tx.timestamp)
+
+    compute_realized_return(tx)
+
+
+def compute_realized_return(tx: Transaction):
+    if tx.sent_usd_cost_basis is not None and tx.received_usd_cost_basis is not None:
+        tx.realized_return = tx.received_usd_cost_basis - tx.sent_usd_cost_basis
+
+    if tx.fee_usd_cost_basis is not None:
+        tx.fee_realized_return -= tx.fee_usd_cost_basis
