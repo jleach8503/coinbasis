@@ -12,6 +12,7 @@ class TestConfigModule(unittest.TestCase):
             'BASE_CURRENCY',
             'API_INTERVAL',
             'API_TIME_RANGE',
+            'API_MIN_DAYS',
             'COINGECKO_API_KEY',
             'COINGECKO_URL',
             'COINGECKO_COIN_MAP',
@@ -28,6 +29,7 @@ class TestConfigModule(unittest.TestCase):
         self.assertIsInstance(self.config.BASE_CURRENCY, str)
         self.assertIsInstance(self.config.API_INTERVAL, str)
         self.assertIsInstance(self.config.API_TIME_RANGE, str)
+        self.assertIsInstance(self.config.API_MIN_DAYS, int)
         self.assertIsInstance(self.config.COINGECKO_API_KEY, str)
         self.assertIsInstance(self.config.COINGECKO_URL, str)
         self.assertIsInstance(self.config.COINGECKO_COIN_MAP, str)

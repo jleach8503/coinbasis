@@ -1,8 +1,10 @@
 from dataclasses import dataclass
+from datetime import datetime
+
 
 @dataclass
 class Transaction:
-    timestamp: str
+    timestamp: datetime
     type: str
     transaction_id: str
 

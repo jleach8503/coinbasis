@@ -4,6 +4,7 @@ import tempfile
 from coinbasis.csv_handler import (
     parse_float,
     parse_string,
+    parse_timestamp,
     parse_row,
     parse_csv,
     get_field_parser,
@@ -12,6 +13,8 @@ from coinbasis.csv_handler import (
     csv,
     Transaction,
     COLUMN_MAP,
+    datetime,
+    timezone,
 )
 
 
@@ -47,6 +50,44 @@ class TestParseString(unittest.TestCase):
         self.assertEqual(parse_string('123'), '123')
 
 
+class TestParseTimestamp(unittest.TestCase):
+    def test_parse_basic_timestamp(self):
+        ts = '2024-01-01 12:00:00'
+        parsed = parse_timestamp(ts)
+        self.assertEqual(
+            parsed,
+            datetime(2024, 1, 1, 12, 0, tzinfo=timezone.utc),
+        )
+
+    def test_parse_iso_timestamp_with_z(self):
+        ts = '2024-01-01T12:00:00Z'
+        parsed = parse_timestamp(ts)
+        self.assertEqual(
+            parsed,
+            datetime(2024, 1, 1, 12, 0, tzinfo=timezone.utc),
+        )
+
+    def test_parse_iso_timestamp_with_offset(self):
+        ts = '2024-01-01T12:00:00+00:00'
+        parsed = parse_timestamp(ts)
+        self.assertEqual(
+            parsed,
+            datetime(2024, 1, 1, 12, 0, tzinfo=timezone.utc),
+        )
+
+    def test_parse_us_format_timestamp(self):
+        ts = '12/30/2025 21:44:51'
+        parsed = parse_timestamp(ts)
+        self.assertEqual(
+            parsed,
+            datetime(2025, 12, 30, 21, 44, 51, tzinfo=timezone.utc),
+        )
+
+    def test_parse_invalid_timestamp_raises(self):
+        with self.assertRaises(Exception):
+            parse_timestamp('not-a-timestamp')
+
+
 class TestGetFieldParser(unittest.TestCase):
     def test_float_field_returns_parse_float(self):
         parser = get_field_parser('received_qty')
@@ -64,6 +105,18 @@ class TestGetFieldParser(unittest.TestCase):
         parser = get_field_parser('received_wallet')
         self.assertIs(parser, parse_string)
 
+    def test_timestamp_field_returns_parse_timestamp(self):
+        parser = get_field_parser('timestamp')
+        self.assertIs(parser, parse_timestamp)
+
+    def test_timestamp_parser_converts_to_datetime(self):
+        parser = get_field_parser('timestamp')
+        parsed = parser('2024-01-01 12:00:00')
+        self.assertEqual(
+            parsed,
+            datetime(2024, 1, 1, 12, 0, tzinfo=timezone.utc)
+        )
+
 
 class TestParseRow(unittest.TestCase):
     def test_parse_row_basic_mapping(self):
@@ -80,7 +133,10 @@ class TestParseRow(unittest.TestCase):
         self.assertIn('received_qty', parsed)
         self.assertIn('received_currency', parsed)
 
-        self.assertEqual(parsed['timestamp'], '2024-01-01 12:00:00')
+        self.assertEqual(
+            parsed['timestamp'],
+            datetime(2024, 1, 1, 12, 0, tzinfo=timezone.utc),
+        )
         self.assertEqual(parsed['type'], 'STAKING_REWARD')
         self.assertEqual(parsed['received_qty'], 1.23)
         self.assertEqual(parsed['received_currency'], 'ATOM')
@@ -134,7 +190,10 @@ class TestParseCSV(unittest.TestCase):
 
         # Validate first row
         t1 = transactions[0]
-        self.assertEqual(t1.timestamp, '2024-01-01 12:00:00')
+        self.assertEqual(
+            t1.timestamp,
+            datetime(2024, 1, 1, 12, 0, tzinfo=timezone.utc)
+        )
         self.assertEqual(t1.type, 'STAKING_REWARD')
         self.assertEqual(t1.transaction_id, '12345')
         self.assertEqual(t1.received_qty, 1.23)
@@ -142,7 +201,10 @@ class TestParseCSV(unittest.TestCase):
 
         # Validate second row
         t2 = transactions[1]
-        self.assertEqual(t2.timestamp, '2024-01-02 13:00:00')
+        self.assertEqual(
+            t2.timestamp,
+            datetime(2024, 1, 2, 13, 0, tzinfo=timezone.utc),
+        )
         self.assertEqual(t2.type, 'INTEREST_PAYMENT')
         self.assertEqual(t2.transaction_id, '67890')
         self.assertEqual(t2.received_qty, 2.50)
@@ -171,7 +233,10 @@ class TestParseCSV(unittest.TestCase):
         transactions = parse_csv(tmp_path)
         t = transactions[0]
 
-        self.assertEqual(t.timestamp, '2024-01-01')
+        self.assertEqual(
+            t.timestamp,
+            datetime(2024, 1, 1, 0, 0, tzinfo=timezone.utc),
+        )
         self.assertEqual(t.type, 'STAKING_REWARD')
         self.assertEqual(t.transaction_id, '12345')
 

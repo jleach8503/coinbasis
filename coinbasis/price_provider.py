@@ -33,20 +33,19 @@ PRICE_CACHE = PriceCache(CACHE_PATH)
 COIN_ID_CACHE = CoinMapCache(COINGECKO_COIN_MAP)
 logger = logging.getLogger(__name__)
 
-def get_usd_price_in_range(symbol: str, timestamp: datetime) -> list[tuple[datetime, float]]:
+def get_usd_price_in_range(coin_id: str, timestamp: datetime) -> dict[str, list[list[float]]]:
     if not COINGECKO_API_KEY:
         logger.error('COINGECKO_API_KEY not set - cannot fetch price data')
         raise RuntimeError('COINGECKO_API_KEY not set')
 
-    coin_id = COIN_ID_CACHE.lookup(symbol)
     start, end = get_time_window(timestamp, TimeRange(API_TIME_RANGE))
 
-    start = to_iso_minute(apply_min_date(start, API_MIN_DAYS))
-    end = to_iso_minute(apply_min_date(end, API_MIN_DAYS))
+    start = apply_min_date(start, API_MIN_DAYS)
+    end = apply_min_date(end, API_MIN_DAYS)
 
     if not (start <= timestamp <= end):
         logger.info(
-            f'Skpping price lookup for {symbol}: timestamp {timestamp} '
+            f'Skpping price lookup for {coin_id}: timestamp {timestamp} '
             f'outside allowed window {start} + {end}'
         )
         return []
@@ -57,13 +56,13 @@ def get_usd_price_in_range(symbol: str, timestamp: datetime) -> list[tuple[datet
         headers = {'x-cg-pro-api-key': COINGECKO_API_KEY}
         params = {
             'vs_currency': BASE_CURRENCY,
-            'from': start,
-            'to': end,
+            'from': to_iso_minute(start),
+            'to': to_iso_minute(end),
             'interval': API_INTERVAL,
         }
 
         logger.debug(
-            f'Requesting price range for {symbol} ({coin_id}) '
+            f'Requesting price range for {coin_id} '
             f'from {params['from']} to {params['to']} with interval {API_INTERVAL}'
         )
 
@@ -71,12 +70,12 @@ def get_usd_price_in_range(symbol: str, timestamp: datetime) -> list[tuple[datet
         response.raise_for_status()
 
         if not response.json():
-            raise ValueError(f'No price data returned for {symbol} ({coin_id}) at {timestamp}')
+            raise ValueError(f'No price data returned for {coin_id} at {timestamp}')
 
         return response.json()
     except Exception as e:
         logger.warning(
-            f'Price lookup failed for {symbol} at {timestamp}: {e}'
+            f'Price lookup failed for {coin_id} at {timestamp}: {e}'
         )
         return []
 
@@ -93,7 +92,10 @@ def get_usd_price_at_time(symbol: str, timestamp: datetime) -> float:
     return price
 
 
-def merge_price_volume(data: dict) -> list[tuple[datetime, float, float]]:
+def merge_price_volume(data: dict) -> list[dict]:
+    if not data or not isinstance(data, dict):
+        return []
+
     prices = data.get('prices', [])
     volumes = data.get('total_volumes', [])
 
@@ -146,20 +148,26 @@ def get_unique_symbols(transactions: Iterable[Transaction]) -> Set[str]:
                 symbol = value.lower()
                 if symbol != BASE_CURRENCY.lower():
                     symbols.add(symbol)
+
+    logger.info(f'Found {len(symbols)} unique symbols.')
     return symbols
 
 
 def add_price_to_transactions(transactions: list[Transaction]):
-    for tx in transactions:
-        ts = tx.timestamp
-
+    logger.info(f'Adding pricing data to {len(transactions)} transactions.')
+    for idx, tx in enumerate(transactions):
+        logger.debug(f'[{idx}] Processing transaction with timestamp {tx.timestamp}')
         if tx.received_currency:
+            logger.debug(f'[{idx}] received_currency {tx.received_currency}')
             tx.received_usd_cost_basis = get_usd_price_at_time(tx.received_currency, tx.timestamp)
         if tx.sent_currency:
+            logger.debug(f'[{idx}] sent_currency {tx.sent_currency}')
             tx.sent_usd_cost_basis = get_usd_price_at_time(tx.sent_currency, tx.timestamp)
         if tx.fee_currency:
+            logger.debug(f'[{idx}] fee_currency {tx.fee_currency}')
             tx.fee_usd_cost_basis = get_usd_price_at_time(tx.fee_currency, tx.timestamp)
 
+    logger.debug(f'[{idx}] Computing realized return')
     compute_realized_return(tx)
 
 
