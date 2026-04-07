@@ -1,7 +1,12 @@
 import csv
 import logging
 from typing import get_args
-from coinbasis.models import Transaction, COLUMN_MAP, datetime
+from coinbasis.models import (
+    Transaction,
+    datetime,
+    COLUMN_MAP,
+    USD_FIELDS,
+)
 from datetime import timezone
 
 
@@ -80,7 +85,13 @@ def transaction_to_row(tx: Transaction) -> dict[str, str]:
     row = {}
     for field_name, col in REVERSED_COLUMN_MAP.items():
         value = getattr(tx, field_name)
-        row[col] = "" if value is None else str(value)
+
+        # Force 2-decimal formatting for USD fields
+        if field_name in USD_FIELDS and value is not None:
+            row[col] = f'{value:2f}'
+            continue
+
+        row[col] = '' if value is None else str(value)
     return row
 
 

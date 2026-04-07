@@ -89,7 +89,7 @@ def get_usd_price_at_time(symbol: str, timestamp: datetime) -> float:
         PRICE_CACHE.store_points(coin_id, merged)
         price = PRICE_CACHE.lookup(coin_id, timestamp)
 
-    return price
+    return round(price, 2) if price is not None else None
 
 
 def merge_price_volume(data: dict) -> list[dict]:
@@ -159,21 +159,33 @@ def add_price_to_transactions(transactions: list[Transaction]):
         logger.debug(f'[{idx}] Processing transaction with timestamp {tx.timestamp}')
         if tx.received_currency:
             logger.debug(f'[{idx}] received_currency {tx.received_currency}')
-            tx.received_usd_cost_basis = get_usd_price_at_time(tx.received_currency, tx.timestamp)
+            price = get_usd_price_at_time(tx.received_currency, tx.timestamp)
+            if price is not None:
+                tx.received_usd_cost_basis =  tx.received_qty * price
         if tx.sent_currency:
             logger.debug(f'[{idx}] sent_currency {tx.sent_currency}')
-            tx.sent_usd_cost_basis = get_usd_price_at_time(tx.sent_currency, tx.timestamp)
+            price = get_usd_price_at_time(tx.sent_currency, tx.timestamp)
+            if price is not None:
+                tx.sent_usd_cost_basis = tx.sent_qty * price
         if tx.fee_currency:
             logger.debug(f'[{idx}] fee_currency {tx.fee_currency}')
-            tx.fee_usd_cost_basis = get_usd_price_at_time(tx.fee_currency, tx.timestamp)
+            price = get_usd_price_at_time(tx.fee_currency, tx.timestamp)
+            if price is not None:
+                tx.fee_usd_cost_basis = tx.fee_qty * price
 
-    logger.debug(f'[{idx}] Computing realized return')
-    compute_realized_return(tx)
+        logger.debug(f'[{idx}] Computing realized return')
+        compute_realized_return(tx)
 
 
 def compute_realized_return(tx: Transaction):
-    if tx.sent_usd_cost_basis is not None and tx.received_usd_cost_basis is not None:
-        tx.realized_return = tx.received_usd_cost_basis - tx.sent_usd_cost_basis
+    if tx.received_usd_cost_basis is not None:
+        if tx.sent_usd_cost_basis is not None:
+            tx.realized_return = tx.received_usd_cost_basis - tx.sent_usd_cost_basis
+        else:
+            tx.realized_return = tx.received_usd_cost_basis
 
-    if tx.fee_usd_cost_basis is not None:
-        tx.fee_realized_return -= tx.fee_usd_cost_basis
+    if tx.realized_return is not None:
+        if tx.fee_usd_cost_basis is not None:
+            tx.fee_realized_return = tx.realized_return - tx.fee_usd_cost_basis
+        else:
+            tx.fee_realized_return = tx.realized_return

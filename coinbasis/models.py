@@ -54,3 +54,11 @@ COLUMN_MAP = {
     'Fee Realized Return (USD)': 'fee_realized_return',
     'Transaction Hash': 'transaction_hash',
 }
+
+USD_FIELDS = [
+    'received_usd_cost_basis',
+    'sent_usd_cost_basis',
+    'fee_usd_cost_basis',
+    'realized_return',
+    'fee_realized_return',
+]
